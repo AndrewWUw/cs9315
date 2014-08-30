@@ -55,7 +55,8 @@ Datum		email_address_in(PG_FUNCTION_ARGS);
 Datum		email_address_out(PG_FUNCTION_ARGS);
 Datum		email_address_recv(PG_FUNCTION_ARGS);
 Datum		email_address_send(PG_FUNCTION_ARGS);
-//Datum		email_address_add(PG_FUNCTION_ARGS);
+Datum		email_address_match_domain(PG_FUNCTION_ARGS);
+Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
 Datum		email_address_abs_lt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_le(PG_FUNCTION_ARGS);
 Datum		email_address_abs_eq(PG_FUNCTION_ARGS);
@@ -168,21 +169,40 @@ email_address_send(PG_FUNCTION_ARGS)
 // *
 // * A practical Complex datatype would provide much more than this, of course.
 // *****************************************************************************/
-//
-//PG_FUNCTION_INFO_V1(email_address_add);
-//
-//Datum
-//email_address_add(PG_FUNCTION_ARGS)
-//{
-//	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
-//	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
-//	EmailAddress *result;
-//
-//	result = (EmailAddress *) palloc(sizeof(EmailAddress));
-//	result->x = a->x + b->x;
-//	result->y = a->y + b->y;
-//	PG_RETURN_POINTER(result);
-//}
+
+PG_FUNCTION_INFO_V1(email_address_match_domain);
+
+
+Datum
+email_address_match_domain(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
+
+	PG_RETURN_BOOL(!strcmp(a->domain, b->domain));
+//	if (strcmp(a->domain, b->domain)) {
+//		PG_RETURN_BOOL(0);
+//	} else {
+//		PG_RETURN_BOOL(1);
+//	}
+}
+
+PG_FUNCTION_INFO_V1(email_address_not_match_domain);
+
+
+Datum
+email_address_not_match_domain(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
+
+	PG_RETURN_BOOL(strcmp(a->domain, b->domain));
+//	if (strcmp(a->domain, b->domain)) {
+//		PG_RETURN_BOOL(1);
+//	} else {
+//		PG_RETURN_BOOL(0);
+//	}
+}
 
 
 /*****************************************************************************
@@ -199,19 +219,20 @@ email_address_send(PG_FUNCTION_ARGS)
 static int
 email_address_abs_cmp_internal(EmailAddress * a, EmailAddress * b)
 {
-	if (strcmp(a->domain, b->domain)) {
-		char * c1 = a->local;
-		char * c2 = b->local;
-		if(c1[0] < c2[0])
+	if (strcmp(a->full_address, b->full_address) != 0) {
+		char * c1;
+		char * c2;
+
+		if (strcmp(a->domain, b->domain) != 0) {
+			c1 = a->local;
+			c2 = b->local;
+		} else {
+			c1 = a->domain;
+			c2 = b->domain;
+		}
+		if (c1[0] < c2[0])
 			return -1;
-		if(c1[0] > c2[0])
-			return 1;
-	} else {
-		char * c1 = a->domain;
-		char * c2 = b->domain;
-		if(c1[0] < c2[0])
-			return -1;
-		if(c1[0] > c2[0])
+		if (c1[0] > c2[0])
 			return 1;
 	}
 	return 0;
