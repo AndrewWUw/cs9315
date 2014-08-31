@@ -60,6 +60,7 @@ Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
 Datum		email_address_abs_lt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_le(PG_FUNCTION_ARGS);
 Datum		email_address_abs_eq(PG_FUNCTION_ARGS);
+Datum		email_address_abs_neq(PG_FUNCTION_ARGS);
 Datum		email_address_abs_ge(PG_FUNCTION_ARGS);
 Datum		email_address_abs_gt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_cmp(PG_FUNCTION_ARGS);
@@ -270,6 +271,17 @@ email_address_abs_eq(PG_FUNCTION_ARGS)
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
 
 	PG_RETURN_BOOL(email_address_abs_cmp_internal(a, b) == 0);
+}
+
+PG_FUNCTION_INFO_V1(email_address_abs_neq);
+
+Datum
+email_address_abs_neq(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
+
+	PG_RETURN_BOOL(email_address_abs_cmp_internal(a, b) != 0);
 }
 
 PG_FUNCTION_INFO_V1(email_address_abs_ge);

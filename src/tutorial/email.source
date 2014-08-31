@@ -119,15 +119,19 @@ CREATE FUNCTION email_address_add(email_address, email_address)
 
 -- we can now define the operator. We show a binary operator here but you
 -- can also define unary operators by omitting either of leftarg or rightarg.
-CREATE OPERATOR + (
+CREATE OPERATOR ~ (
    leftarg = email_address,
    rightarg = email_address,
-   procedure = email_address_add,
-   commutator = +
+   procedure = email_address_match_domain,
+   commutator = ~
 );
 
-
-SELECT (a + b) AS c FROM test_email_address;
+CREATE OPERATOR !~ (
+   leftarg = email_address,
+   rightarg = email_address,
+   procedure = email_address_not_match_domain,
+   commutator = !~
+);
 
 -- Occasionally, you may find it useful to cast the string to the desired
 -- type explicitly. :: denotes a type cast.
@@ -168,6 +172,8 @@ CREATE FUNCTION email_address_abs_le(email_address, email_address) RETURNS bool
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_eq(email_address, email_address) RETURNS bool
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION email_address_abs_neq(email_address, email_address) RETURNS bool
+   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_ge(email_address, email_address) RETURNS bool
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_gt(email_address, email_address) RETURNS bool
@@ -185,10 +191,13 @@ CREATE OPERATOR <= (
 );
 CREATE OPERATOR = (
    leftarg = email_address, rightarg = email_address, procedure = email_address_abs_eq,
-   commutator = = ,
-   -- leave out negator since we didn't create <> operator
-   -- negator = <> ,
+   commutator = = , negator = <> ,
    restrict = eqsel, join = eqjoinsel
+);
+CREATE OPERATOR <> (
+   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_neq,
+   commutator = <> , negator = = ,
+   restrict = neqsel, join = neqjoinsel
 );
 CREATE OPERATOR >= (
    leftarg = email_address, rightarg = email_address, procedure = email_address_abs_ge,
@@ -211,10 +220,15 @@ CREATE OPERATOR CLASS email_address_abs_ops
         OPERATOR        1       < ,
         OPERATOR        2       <= ,
         OPERATOR        3       = ,
+        OPERATOR        3       <> ,
         OPERATOR        4       >= ,
         OPERATOR        5       > ,
         FUNCTION        1       email_address_abs_cmp(email_address, email_address);
 
+CREATE OPERATOR CLASS email_address_abs_ops
+    DEFAULT FOR TYPE email_address USING hash AS
+        OPERATOR        1       = ,
+        FUNCTION        1       email_address_abs_cmp(email_address, email_address);
 
 -- now, we can define a btree index on email_address types. First, let's populate
 -- the table. Note that postgres needs many more tuples to start using the
