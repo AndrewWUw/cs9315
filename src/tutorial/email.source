@@ -67,95 +67,14 @@ CREATE FUNCTION email_address_send(email_address)
 -- memory block required to hold the type (we need two 8-byte doubles).
 
 CREATE TYPE EmailAddress (
-   internallength = 285,
+   internallength = 513,
    input = email_address_in,
    output = email_address_out,
    receive = email_address_recv,
    send = email_address_send,
-   alignment = char -- todo
+   -- alignment = char -- todo
 );
 
-
------------------------------
--- Using the new type:
---	user-defined types can be used like ordinary built-in types.
------------------------------
-
--- eg. we can use it in a table
-
-create table UserSessions (
-   username  EmailAddress,
-   loggedIn  timestamp,
-   loggedOut timestamp
-);
-
--- data for user-defined types are just strings in the proper textual
--- representation.
-
-insert into Users(username,loggedIn,loggedOut) values
-('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
-('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
-('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
-('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
-('a-user@fast-money.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
-
-SELECT * FROM test_email_address;
-
-create index on UserSessions using hash (username);
-
------------------------------
--- Creating an operator for the new type:
---	Let's define an add operator for email_address types. Since POSTGRES
---	supports function overloading, we'll use + as the add operator.
---	(Operator names can be reused with different numbers and types of
---	arguments.)
------------------------------
-
--- first, define a function email_address_add (also in email_address.c)
-CREATE FUNCTION email_address_add(email_address, email_address)
-   RETURNS email_address
-   AS '_OBJWD_/EmailAddress'
-   LANGUAGE C IMMUTABLE STRICT;
-
--- we can now define the operator. We show a binary operator here but you
--- can also define unary operators by omitting either of leftarg or rightarg.
-CREATE OPERATOR ~ (
-   leftarg = email_address,
-   rightarg = email_address,
-   procedure = email_address_match_domain,
-   commutator = ~
-);
-
-CREATE OPERATOR !~ (
-   leftarg = email_address,
-   rightarg = email_address,
-   procedure = email_address_not_match_domain,
-   commutator = !~
-);
-
--- Occasionally, you may find it useful to cast the string to the desired
--- type explicitly. :: denotes a type cast.
-SELECT  a + '(1.0,1.0)'::email_address AS aa,
-
-        b + '(1.0,1.0)'::email_address AS bb
-   FROM test_email_address;
-
-
------------------------------
--- Creating aggregate functions
---	you can also define aggregate functions. The syntax is somewhat
---	cryptic but the idea is to express the aggregate in terms of state
---	transition functions.
------------------------------
-
-CREATE AGGREGATE email_address_sum (
-   sfunc = email_address_add,
-   basetype = email_address,
-   stype = email_address,
-   initcond = '(0,0)'
-);
-
-SELECT email_address_sum(a) FROM test_email_address;
 
 
 -----------------------------
@@ -177,6 +96,10 @@ CREATE FUNCTION email_address_abs_neq(email_address, email_address) RETURNS bool
 CREATE FUNCTION email_address_abs_ge(email_address, email_address) RETURNS bool
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_gt(email_address, email_address) RETURNS bool
+   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION email_address_abs_match_domain(email_address, email_address) RETURNS bool
+   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION email_address_abs_not_match_domain(email_address, email_address) RETURNS bool
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR < (
@@ -210,25 +133,71 @@ CREATE OPERATOR > (
    restrict = scalargtsel, join = scalargtjoinsel
 );
 
+CREATE OPERATOR ~ (
+   leftarg = email_address, rightarg = email_address, procedure = email_address_match_domain,
+   commutator = ~, negator = !~ ,
+   restrict = eqsel, join = eqjoinsel
+);
+
+CREATE OPERATOR !~ (
+   leftarg = email_address, rightarg = email_address, procedure = email_address_not_match_domain,
+   commutator = !~, negator = ~ ,
+   restrict = neqsel, join = neqjoinsel
+);
+
 -- create the support function too
 CREATE FUNCTION email_address_abs_cmp(email_address, email_address) RETURNS int4
+   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION email_address_match_domain(email_address, email_address) RETURNS int4
+   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+CREATE FUNCTION email_address_abs_hash(email_address, email_address) RETURNS int32
    AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
 
 -- now we can make the operator class
 CREATE OPERATOR CLASS email_address_abs_ops
-    DEFAULT FOR TYPE email_address USING btree AS
+    DEFAULT FOR TYPE EmailAddress USING btree AS
         OPERATOR        1       < ,
         OPERATOR        2       <= ,
         OPERATOR        3       = ,
-        OPERATOR        3       <> ,
         OPERATOR        4       >= ,
         OPERATOR        5       > ,
         FUNCTION        1       email_address_abs_cmp(email_address, email_address);
 
-CREATE OPERATOR CLASS email_address_abs_ops
-    DEFAULT FOR TYPE email_address USING hash AS
+CREATE OPERATOR CLASS email_address_abs_ops_hash
+    DEFAULT FOR TYPE EmailAddress USING hash AS
         OPERATOR        1       = ,
-        FUNCTION        1       email_address_abs_cmp(email_address, email_address);
+        FUNCTION        1       email_address_abs_hash(email_address, email_address);
+
+
+
+
+-----------------------------
+-- Using the new type:
+--  user-defined types can be used like ordinary built-in types.
+-----------------------------
+
+-- eg. we can use it in a table
+
+create table UserSessions (
+   username  EmailAddress,
+   loggedIn  timestamp,
+   loggedOut timestamp
+);
+
+-- data for user-defined types are just strings in the proper textual
+-- representation.
+
+insert into Users(username,loggedIn,loggedOut) values
+('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
+('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
+('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
+('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
+('a-user@fast-money.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
+
+SELECT * FROM test_email_address;
+
+create index on UserSessions using hash (username);
+
 
 -- now, we can define a btree index on email_address types. First, let's populate
 -- the table. Note that postgres needs many more tuples to start using the

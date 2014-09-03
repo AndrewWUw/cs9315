@@ -9,10 +9,11 @@
 
 #include "postgres.h"
 
-#include "fmgr.h"
-#include "libpq/pqformat.h"		/* needed for send/recv functions */
 #include <stdbool.h>
 #include <string.h>
+#include "fmgr.h"
+#include "libpq/pqformat.h"		/* needed for send/recv functions */
+#include "access/hash.h"
 
 PG_MODULE_MAGIC;
 
@@ -28,12 +29,6 @@ PG_MODULE_MAGIC;
  * Letter       ::= 'a' | 'b' | ... | 'z' | 'A' | 'B' | ... 'Z'
  * Digit        ::= '0' | '1' | '2' | ... | '8' | '9'
  */
-
-typedef struct Complex
-{
-	double		x;
-	double		y;
-}	Complex;
 
 const int MAX_LENGTH = 128;
 
@@ -55,6 +50,7 @@ Datum		email_address_in(PG_FUNCTION_ARGS);
 Datum		email_address_out(PG_FUNCTION_ARGS);
 Datum		email_address_recv(PG_FUNCTION_ARGS);
 Datum		email_address_send(PG_FUNCTION_ARGS);
+
 Datum		email_address_match_domain(PG_FUNCTION_ARGS);
 Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
 Datum		email_address_abs_lt(PG_FUNCTION_ARGS);
@@ -64,6 +60,7 @@ Datum		email_address_abs_neq(PG_FUNCTION_ARGS);
 Datum		email_address_abs_ge(PG_FUNCTION_ARGS);
 Datum		email_address_abs_gt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_cmp(PG_FUNCTION_ARGS);
+Datum		email_address_abs_hash(PG_FUNCTION_ARGS);
 
 bool is_valid_email_address(const char *);
 
@@ -315,4 +312,16 @@ email_address_abs_cmp(PG_FUNCTION_ARGS)
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
 
 	PG_RETURN_INT32(email_address_abs_cmp_internal(a, b));
+}
+
+PG_FUNCTION_INFO_V1(email_address_abs_cmp);
+
+Datum
+email_address_abs_hash(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	int len = strlen(a->full_address);
+	int hash = DatumGetUInt32(hash_any(a->full_address, len));
+
+	PG_RETURN_INT32(hash);
 }
