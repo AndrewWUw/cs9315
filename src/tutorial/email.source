@@ -35,7 +35,7 @@
 
 CREATE FUNCTION email_address_in(cstring)
    RETURNS EmailAddress
-   AS '_OBJWD_/EmailAddress'
+   AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
 -- the output function 'email_address_out' takes the internal representation and
@@ -43,7 +43,7 @@ CREATE FUNCTION email_address_in(cstring)
 
 CREATE FUNCTION email_address_out(email_address)
    RETURNS cstring
-   AS '_OBJWD_/EmailAddress'
+   AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
 -- the binary input function 'email_address_recv' takes a StringInfo buffer
@@ -51,7 +51,7 @@ CREATE FUNCTION email_address_out(email_address)
 
 CREATE FUNCTION email_address_recv(internal)
    RETURNS email_address
-   AS '_OBJWD_/EmailAddress'
+   AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
 -- the binary output function 'email_address_send' takes the internal representation
@@ -59,7 +59,7 @@ CREATE FUNCTION email_address_recv(internal)
 
 CREATE FUNCTION email_address_send(email_address)
    RETURNS bytea
-   AS '_OBJWD_/EmailAddress'
+   AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
 
@@ -74,7 +74,6 @@ CREATE TYPE EmailAddress (
    send = email_address_send,
    -- alignment = char -- todo
 );
-
 
 
 -----------------------------

@@ -1,5 +1,5 @@
 /*
- * src/tutorial/complex.c
+ * src/tutorial/email.c
  *
  ******************************************************************************
   This file contains routines that can be bound to a Postgres backend and
@@ -10,6 +10,7 @@
 #include "postgres.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include "fmgr.h"
 #include "libpq/pqformat.h"		/* needed for send/recv functions */
@@ -51,8 +52,6 @@ Datum		email_address_out(PG_FUNCTION_ARGS);
 Datum		email_address_recv(PG_FUNCTION_ARGS);
 Datum		email_address_send(PG_FUNCTION_ARGS);
 
-Datum		email_address_match_domain(PG_FUNCTION_ARGS);
-Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
 Datum		email_address_abs_lt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_le(PG_FUNCTION_ARGS);
 Datum		email_address_abs_eq(PG_FUNCTION_ARGS);
@@ -61,12 +60,83 @@ Datum		email_address_abs_ge(PG_FUNCTION_ARGS);
 Datum		email_address_abs_gt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_cmp(PG_FUNCTION_ARGS);
 Datum		email_address_abs_hash(PG_FUNCTION_ARGS);
+Datum		email_address_match_domain(PG_FUNCTION_ARGS);
+Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
 
 bool is_valid_email_address(const char *);
 
-bool is_valid_email_address(const char *){
+bool is_valid_email_address(const char * addr)
+{
+	int count = 0;
+	const char *c;
+	const char *domain;
+	static char rfc822_specials[] = { '(', ')', '<', '>', '@', ',', ';', ':',
+			'\\', '[', ']', ' ' };
 
-	return false;
+	/* Email address format : n@d
+	 * n = local Name
+	 * d = email address Domain
+	 */
+
+	// Check n in n@d
+	for (c = addr; *c != '\n'; ++c) {
+		if (*c == ' ' && (c == addr || *(c - 1) == '.' || *(c - 1) == ' ')) {
+			while (*++c) {
+				if (*c == ' ') {
+					break;
+				}
+				if (*c == '\\' && (*++c == ' ')) {
+					continue;
+				}
+				if (*c <= ' ' || *c >= 127) {
+					return 0;
+				}
+			}
+			if (!*c++) {
+				return 0;
+			}
+			if (*c == '@') {
+				break;
+			}
+			if (*c != '.') {
+				return 0;
+			}
+			continue;
+		}
+		if (*c == '@') {
+			break;
+		}
+		if (*c <= ' ' || *c >= 127) {
+			return 0;
+		}
+		if (strchr(rfc822_specials, *c)) {
+			return 0;
+		}
+	}
+	if (c == addr || *(c - 1) == '.') {
+		return 0;
+	}
+
+	// Check d in n@d
+	if (!*(domain = ++c)) {
+		return 0;
+	}
+	do {
+		if (*c == '.') {
+			if (c == domain || *(c - 1) == '.') {
+				return 0;
+			}
+			count++;
+		}
+		if (*c <= ' ' || *c >= 127) {
+			return 0;
+		}
+		if (strchr(rfc822_specials, *c)) {
+			return 0;
+		}
+	} while (*++c);
+
+	return (count >= 1);
 }
 
 /*****************************************************************************
@@ -160,46 +230,6 @@ email_address_send(PG_FUNCTION_ARGS)
 	pq_sendbytes(&buf, email_address->domain, sizeof(char) * MAX_LENGTH);
 	pq_sendbytes(&buf, email_address->full_address, sizeof(char) * MAX_LENGTH * 2 + 1);
 	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
-}
-
-///*****************************************************************************
-// * New Operators
-// *
-// * A practical Complex datatype would provide much more than this, of course.
-// *****************************************************************************/
-
-PG_FUNCTION_INFO_V1(email_address_match_domain);
-
-
-Datum
-email_address_match_domain(PG_FUNCTION_ARGS)
-{
-	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
-	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
-
-	PG_RETURN_BOOL(!strcmp(a->domain, b->domain));
-//	if (strcmp(a->domain, b->domain)) {
-//		PG_RETURN_BOOL(0);
-//	} else {
-//		PG_RETURN_BOOL(1);
-//	}
-}
-
-PG_FUNCTION_INFO_V1(email_address_not_match_domain);
-
-
-Datum
-email_address_not_match_domain(PG_FUNCTION_ARGS)
-{
-	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
-	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
-
-	PG_RETURN_BOOL(strcmp(a->domain, b->domain));
-//	if (strcmp(a->domain, b->domain)) {
-//		PG_RETURN_BOOL(1);
-//	} else {
-//		PG_RETURN_BOOL(0);
-//	}
 }
 
 
@@ -314,7 +344,7 @@ email_address_abs_cmp(PG_FUNCTION_ARGS)
 	PG_RETURN_INT32(email_address_abs_cmp_internal(a, b));
 }
 
-PG_FUNCTION_INFO_V1(email_address_abs_cmp);
+PG_FUNCTION_INFO_V1(email_address_abs_hash);
 
 Datum
 email_address_abs_hash(PG_FUNCTION_ARGS)
@@ -324,4 +354,37 @@ email_address_abs_hash(PG_FUNCTION_ARGS)
 	int hash = DatumGetUInt32(hash_any(a->full_address, len));
 
 	PG_RETURN_INT32(hash);
+}
+
+PG_FUNCTION_INFO_V1(email_address_match_domain);
+
+Datum
+email_address_match_domain(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
+
+	PG_RETURN_BOOL(!strcmp(a->domain, b->domain));
+//	if (strcmp(a->domain, b->domain)) {
+//		PG_RETURN_BOOL(0);
+//	} else {
+//		PG_RETURN_BOOL(1);
+//	}
+}
+
+PG_FUNCTION_INFO_V1(email_address_not_match_domain);
+
+
+Datum
+email_address_not_match_domain(PG_FUNCTION_ARGS)
+{
+	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
+	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
+
+	PG_RETURN_BOOL(strcmp(a->domain, b->domain));
+//	if (strcmp(a->domain, b->domain)) {
+//		PG_RETURN_BOOL(1);
+//	} else {
+//		PG_RETURN_BOOL(0);
+//	}
 }
