@@ -11,7 +11,9 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>  
 #include <string.h>
+#include <ctype.h>
 #include "fmgr.h"
 #include "libpq/pqformat.h"		/* needed for send/recv functions */
 #include "access/hash.h"
@@ -31,16 +33,14 @@ PG_MODULE_MAGIC;
  * Digit        ::= '0' | '1' | '2' | ... | '8' | '9'
  */
 
-const int MAX_LENGTH = 128;
-
+#define MAX_LENGTH 128
+ 
 typedef struct EmailAddress
 {
-	char * local;
-	char * domain;
-	char * full_address;
+	char local[MAX_LENGTH];
+	char domain[MAX_LENGTH];
+	char full_address[2 * MAX_LENGTH + 1];
 }	EmailAddress;
-
-const int MAX_LENGTH = 128;
 
 /*
  * Since we use V1 function calling convention, all these functions have
@@ -60,8 +60,8 @@ Datum		email_address_abs_ge(PG_FUNCTION_ARGS);
 Datum		email_address_abs_gt(PG_FUNCTION_ARGS);
 Datum		email_address_abs_cmp(PG_FUNCTION_ARGS);
 Datum		email_address_abs_hash(PG_FUNCTION_ARGS);
-Datum		email_address_match_domain(PG_FUNCTION_ARGS);
-Datum		email_address_not_match_domain(PG_FUNCTION_ARGS);
+Datum		email_address_abs_match_domain(PG_FUNCTION_ARGS);
+Datum		email_address_abs_not_match_domain(PG_FUNCTION_ARGS);
 
 bool is_valid_email_address(const char *);
 
@@ -152,8 +152,7 @@ email_address_in(PG_FUNCTION_ARGS)
 
 	if (!is_valid_email_address(str))
 		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-						errmsg("invalid input syntax for EmailAddress: \"%s\"", str)));
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), errmsg("invalid input syntax for EmailAddress: \"%s\"", str)));
 
 	int i = 0;
 	while (str[i] != '\0') {
@@ -163,9 +162,6 @@ email_address_in(PG_FUNCTION_ARGS)
 
 	EmailAddress *result;
 	result = (EmailAddress *) palloc(sizeof(EmailAddress));
-	result->local = palloc(sizeof(char) * MAX_LENGTH);
-	result->domain = palloc(sizeof(char) * MAX_LENGTH);
-	result->full_address = palloc(sizeof((char) * MAX_LENGTH * 2 + 1));
 
 	strcpy(result->full_address, str);
 
@@ -188,7 +184,7 @@ Datum
 email_address_out(PG_FUNCTION_ARGS)
 {
 	EmailAddress *email_address = (EmailAddress *) PG_GETARG_POINTER(0);
-	char	   *result;
+	char	  	 *result;
 
 	result = (char *) palloc(sizeof(char) * strlen(email_address->full_address));
 	snprintf(result, sizeof(char) * strlen(email_address->full_address), "%s", email_address->full_address);
@@ -210,9 +206,9 @@ email_address_recv(PG_FUNCTION_ARGS)
 	EmailAddress *result;
 
 	result = (EmailAddress *) palloc(sizeof(EmailAddress));
-	result->local = pq_getmsgbytes(buf, sizeof((char) * MAX_LENGTH));
-	result->domain = pq_getmsgbytes(buf, sizeof((char) * MAX_LENGTH));
-	result->full_address = pq_getmsgbytes(buf, sizeof((char) * MAX_LENGTH * 2 + 1) );
+	strcpy(result->local, pq_getmsgstring(buf));
+	strcpy(result->domain, pq_getmsgstring(buf));
+	strcpy(result->full_address, pq_getmsgstring(buf));
 
 	PG_RETURN_POINTER(result);
 }
@@ -226,9 +222,9 @@ email_address_send(PG_FUNCTION_ARGS)
 	StringInfoData buf;
 
 	pq_begintypsend(&buf);
-	pq_sendbytes(&buf, email_address->local, sizeof(char) * MAX_LENGTH);
-	pq_sendbytes(&buf, email_address->domain, sizeof(char) * MAX_LENGTH);
-	pq_sendbytes(&buf, email_address->full_address, sizeof(char) * MAX_LENGTH * 2 + 1);
+	pq_sendstring(&buf, email_address->local);
+	pq_sendstring(&buf, email_address->domain);
+	pq_sendstring(&buf, email_address->full_address);
 	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -351,15 +347,15 @@ email_address_abs_hash(PG_FUNCTION_ARGS)
 {
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	int len = strlen(a->full_address);
-	int hash = DatumGetUInt32(hash_any(a->full_address, len));
+	int hash = DatumGetUInt32(hash_any((const unsigned char * )a->full_address, len));
 
 	PG_RETURN_INT32(hash);
 }
 
-PG_FUNCTION_INFO_V1(email_address_match_domain);
+PG_FUNCTION_INFO_V1(email_address_abs_match_domain);
 
 Datum
-email_address_match_domain(PG_FUNCTION_ARGS)
+email_address_abs_match_domain(PG_FUNCTION_ARGS)
 {
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
@@ -372,11 +368,10 @@ email_address_match_domain(PG_FUNCTION_ARGS)
 //	}
 }
 
-PG_FUNCTION_INFO_V1(email_address_not_match_domain);
-
+PG_FUNCTION_INFO_V1(email_address_abs_not_match_domain);
 
 Datum
-email_address_not_match_domain(PG_FUNCTION_ARGS)
+email_address_abs_not_match_domain(PG_FUNCTION_ARGS)
 {
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);

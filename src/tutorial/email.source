@@ -21,7 +21,7 @@
 --	are usually user-defined C functions.
 -----------------------------
 
--- Assume the user defined functions are in _OBJWD_/EmailAddress$DLSUFFIX
+-- Assume the user defined functions are in _OBJWD_/email$DLSUFFIX
 -- (we do not want to assume this is in the dynamic loader search path).
 -- Look at $PWD/email_address.c for the source.  Note that we declare all of
 -- them as STRICT, so we do not need to cope with NULL inputs in the
@@ -50,7 +50,7 @@ CREATE FUNCTION email_address_out(email_address)
 -- and turns its contents into the internal representation.
 
 CREATE FUNCTION email_address_recv(internal)
-   RETURNS email_address
+   RETURNS EmailAddress
    AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
@@ -71,8 +71,8 @@ CREATE TYPE EmailAddress (
    input = email_address_in,
    output = email_address_out,
    receive = email_address_recv,
-   send = email_address_send,
-   -- alignment = char -- todo
+   send = email_address_send
+   --,alignment = char -- todo
 );
 
 
@@ -85,21 +85,21 @@ CREATE TYPE EmailAddress (
 
 -- first, define the required operators
 CREATE FUNCTION email_address_abs_lt(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_le(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_eq(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_neq(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_ge(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_gt(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_match_domain(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_not_match_domain(email_address, email_address) RETURNS bool
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR < (
    leftarg = email_address, rightarg = email_address, procedure = email_address_abs_lt,
@@ -131,13 +131,11 @@ CREATE OPERATOR > (
    commutator = < , negator = <= ,
    restrict = scalargtsel, join = scalargtjoinsel
 );
-
 CREATE OPERATOR ~ (
    leftarg = email_address, rightarg = email_address, procedure = email_address_match_domain,
    commutator = ~, negator = !~ ,
    restrict = eqsel, join = eqjoinsel
 );
-
 CREATE OPERATOR !~ (
    leftarg = email_address, rightarg = email_address, procedure = email_address_not_match_domain,
    commutator = !~, negator = ~ ,
@@ -146,11 +144,9 @@ CREATE OPERATOR !~ (
 
 -- create the support function too
 CREATE FUNCTION email_address_abs_cmp(email_address, email_address) RETURNS int4
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_match_domain(email_address, email_address) RETURNS int4
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 CREATE FUNCTION email_address_abs_hash(email_address, email_address) RETURNS int32
-   AS '_OBJWD_/EmailAddress' LANGUAGE C IMMUTABLE STRICT;
+   AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 
 -- now we can make the operator class
 CREATE OPERATOR CLASS email_address_abs_ops
@@ -166,8 +162,6 @@ CREATE OPERATOR CLASS email_address_abs_ops_hash
     DEFAULT FOR TYPE EmailAddress USING hash AS
         OPERATOR        1       = ,
         FUNCTION        1       email_address_abs_hash(email_address, email_address);
-
-
 
 
 -----------------------------
@@ -194,24 +188,25 @@ insert into Users(username,loggedIn,loggedOut) values
 ('a-user@fast-money.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
 
 SELECT * FROM test_email_address;
-
-create index on UserSessions using hash (username);
-
-
--- now, we can define a btree index on email_address types. First, let's populate
--- the table. Note that postgres needs many more tuples to start using the
--- btree index during selects.
-INSERT INTO test_email_address VALUES ('(56.0,-22.5)', '(-43.2,-0.07)');
-INSERT INTO test_email_address VALUES ('(-91.9,33.6)', '(8.6,3.0)');
-
-CREATE INDEX test_cplx_ind ON test_email_address
-   USING btree(a email_address_abs_ops);
-
-SELECT * from test_email_address where a = '(56.0,-22.5)';
-SELECT * from test_email_address where a < '(56.0,-22.5)';
-SELECT * from test_email_address where a > '(56.0,-22.5)';
-
+--
+--create index on UserSessions using hash (username);
+--
+--select a.username, a.loggedIn, b.loggedIn
+--from   UserSessions a, UserSessions b
+--where  a.uname = b.uname and a.loggedIn <> b.loggedIn;
+--
+--CREATE INDEX test_cplx_ind ON test_email_address
+--   USING btree(a email_address_abs_ops);
+--
+--SELECT * from UserSessions where username = 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username != 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username < 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username <= 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username > 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username >= 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username ~ 'abc@cse.unsw.edu.au';
+--SELECT * from UserSessions where username !~ 'abc@cse.unsw.edu.au';
 
 -- clean up the example
-DROP TABLE test_email_address;
-DROP TYPE email_address CASCADE;
+--DROP TABLE test_email_address;
+--DROP TYPE email_address CASCADE;
