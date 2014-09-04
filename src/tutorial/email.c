@@ -78,8 +78,11 @@ bool is_valid_email_address(const char * addr)
 	 * d = email address Domain
 	 */
 
+	if (sizeof(addr) > (128 + 128 + 1 + 1))
+		return 0;
+
 	// Check n in n@d
-	for (c = addr; *c != '\n'; ++c) {
+	for (c = addr; *c != '\0'; ++c) {
 		if (*c == ' ' && (c == addr || *(c - 1) == '.' || *(c - 1) == ' ')) {
 			while (*++c) {
 				if (*c == ' ') {
@@ -171,9 +174,10 @@ email_address_in(PG_FUNCTION_ARGS)
 	token = strtok(token, "@");
 	strcpy(result->local, token);
 
-	token = strstr(str, "@");
-	++token;
+	token = strtok(NULL, "@");
+
 	strcpy(result->domain, token);
+	strcat(result->full_address, "@");
 
 	PG_RETURN_POINTER(result);
 }
@@ -187,7 +191,8 @@ email_address_out(PG_FUNCTION_ARGS)
 	char	  	 *result;
 
 	result = (char *) palloc(sizeof(char) * strlen(email_address->full_address));
-	snprintf(result, sizeof(char) * strlen(email_address->full_address), "%s", email_address->full_address);
+	snprintf(result, sizeof(char) * strlen(email_address->full_address), "%s\n", email_address->full_address);
+//	snprintf(result, sizeof(char) * strlen(email_address->full_address), "%s@%s", email_address->local, email_address->domain);
 	PG_RETURN_CSTRING(result);
 }
 
@@ -244,20 +249,12 @@ static int
 email_address_abs_cmp_internal(EmailAddress * a, EmailAddress * b)
 {
 	if (strcmp(a->full_address, b->full_address) != 0) {
-		char * c1;
-		char * c2;
 
 		if (strcmp(a->domain, b->domain) != 0) {
-			c1 = a->local;
-			c2 = b->local;
+			return(strcmp(a->domain, b->domain));
 		} else {
-			c1 = a->domain;
-			c2 = b->domain;
+			return(strcmp(a->local, b->local));
 		}
-		if (c1[0] < c2[0])
-			return -1;
-		if (c1[0] > c2[0])
-			return 1;
 	}
 	return 0;
 }
@@ -347,9 +344,9 @@ email_address_abs_hash(PG_FUNCTION_ARGS)
 {
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	int len = strlen(a->full_address);
-	int hash = DatumGetUInt32(hash_any((const unsigned char * )a->full_address, len));
+//	int hash = DatumGetUInt32(hash_any((const unsigned char * )a->full_address, len));
 
-	PG_RETURN_INT32(hash);
+	PG_RETURN_INT32(DatumGetUInt32(hash_any((const unsigned char * )a->full_address, len)));
 }
 
 PG_FUNCTION_INFO_V1(email_address_abs_match_domain);
@@ -360,7 +357,7 @@ email_address_abs_match_domain(PG_FUNCTION_ARGS)
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
 
-	PG_RETURN_BOOL(!strcmp(a->domain, b->domain));
+	PG_RETURN_BOOL(strcmp(a->domain, b->domain) == 0);
 //	if (strcmp(a->domain, b->domain)) {
 //		PG_RETURN_BOOL(0);
 //	} else {
@@ -376,7 +373,7 @@ email_address_abs_not_match_domain(PG_FUNCTION_ARGS)
 	EmailAddress *a = (EmailAddress *) PG_GETARG_POINTER(0);
 	EmailAddress *b = (EmailAddress *) PG_GETARG_POINTER(1);
 
-	PG_RETURN_BOOL(strcmp(a->domain, b->domain));
+	PG_RETURN_BOOL(strcmp(a->domain, b->domain) != 0);
 //	if (strcmp(a->domain, b->domain)) {
 //		PG_RETURN_BOOL(1);
 //	} else {

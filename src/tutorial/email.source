@@ -41,7 +41,7 @@ CREATE FUNCTION email_address_in(cstring)
 -- the output function 'email_address_out' takes the internal representation and
 -- converts it into the textual representation.
 
-CREATE FUNCTION email_address_out(email_address)
+CREATE FUNCTION email_address_out(EmailAddress)
    RETURNS cstring
    AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
@@ -57,14 +57,13 @@ CREATE FUNCTION email_address_recv(internal)
 -- the binary output function 'email_address_send' takes the internal representation
 -- and converts it into a (hopefully) platform-independent bytea string.
 
-CREATE FUNCTION email_address_send(email_address)
+CREATE FUNCTION email_address_send(EmailAddress)
    RETURNS bytea
    AS '_OBJWD_/email'
    LANGUAGE C IMMUTABLE STRICT;
 
-
 -- now, we can create the type. The internallength specifies the size of the
--- memory block required to hold the type (we need two 8-byte doubles).
+-- memory block required to hold the type.
 
 CREATE TYPE EmailAddress (
    internallength = 513,
@@ -84,68 +83,68 @@ CREATE TYPE EmailAddress (
 -----------------------------
 
 -- first, define the required operators
-CREATE FUNCTION email_address_abs_lt(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_lt(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_le(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_le(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_eq(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_eq(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_neq(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_neq(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_ge(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_ge(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_gt(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_gt(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_match_domain(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_match_domain(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_not_match_domain(email_address, email_address) RETURNS bool
+CREATE FUNCTION email_address_abs_not_match_domain(EmailAddress, EmailAddress) RETURNS bool
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR < (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_lt,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_lt,
    commutator = > , negator = >= ,
    restrict = scalarltsel, join = scalarltjoinsel
 );
 CREATE OPERATOR <= (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_le,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_le,
    commutator = >= , negator = > ,
    restrict = scalarltsel, join = scalarltjoinsel
 );
 CREATE OPERATOR = (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_eq,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_eq,
    commutator = = , negator = <> ,
-   restrict = eqsel, join = eqjoinsel
+   restrict = eqsel, join = eqjoinsel , HASHES
 );
 CREATE OPERATOR <> (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_neq,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_neq,
    commutator = <> , negator = = ,
    restrict = neqsel, join = neqjoinsel
 );
 CREATE OPERATOR >= (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_ge,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_ge,
    commutator = <= , negator = < ,
    restrict = scalargtsel, join = scalargtjoinsel
 );
 CREATE OPERATOR > (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_abs_gt,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_gt,
    commutator = < , negator = <= ,
    restrict = scalargtsel, join = scalargtjoinsel
 );
 CREATE OPERATOR ~ (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_match_domain,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_match_domain,
    commutator = ~, negator = !~ ,
    restrict = eqsel, join = eqjoinsel
 );
 CREATE OPERATOR !~ (
-   leftarg = email_address, rightarg = email_address, procedure = email_address_not_match_domain,
+   leftarg = EmailAddress, rightarg = EmailAddress, procedure = email_address_abs_not_match_domain,
    commutator = !~, negator = ~ ,
    restrict = neqsel, join = neqjoinsel
 );
 
 -- create the support function too
-CREATE FUNCTION email_address_abs_cmp(email_address, email_address) RETURNS int4
+CREATE FUNCTION email_address_abs_cmp(EmailAddress, EmailAddress) RETURNS int4
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
-CREATE FUNCTION email_address_abs_hash(email_address, email_address) RETURNS int32
+CREATE FUNCTION email_address_abs_hash(EmailAddress) RETURNS int4
    AS '_OBJWD_/email' LANGUAGE C IMMUTABLE STRICT;
 
 -- now we can make the operator class
@@ -156,12 +155,12 @@ CREATE OPERATOR CLASS email_address_abs_ops
         OPERATOR        3       = ,
         OPERATOR        4       >= ,
         OPERATOR        5       > ,
-        FUNCTION        1       email_address_abs_cmp(email_address, email_address);
+        FUNCTION        1       email_address_abs_cmp(EmailAddress, EmailAddress);
 
 CREATE OPERATOR CLASS email_address_abs_ops_hash
     DEFAULT FOR TYPE EmailAddress USING hash AS
         OPERATOR        1       = ,
-        FUNCTION        1       email_address_abs_hash(email_address, email_address);
+        FUNCTION        1       email_address_abs_hash(EmailAddress);
 
 
 -----------------------------
@@ -170,43 +169,64 @@ CREATE OPERATOR CLASS email_address_abs_ops_hash
 -----------------------------
 
 -- eg. we can use it in a table
-
-create table UserSessions (
-   username  EmailAddress,
-   loggedIn  timestamp,
-   loggedOut timestamp
-);
-
--- data for user-defined types are just strings in the proper textual
--- representation.
-
-insert into Users(username,loggedIn,loggedOut) values
-('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
-('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
-('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
-('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
-('a-user@fast-money.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
-
-SELECT * FROM test_email_address;
 --
---create index on UserSessions using hash (username);
+--create table Users (
+--   username  EmailAddress,
+--   loggedIn  timestamp,
+--   loggedOut timestamp
+--);
 --
---select a.username, a.loggedIn, b.loggedIn
---from   UserSessions a, UserSessions b
---where  a.uname = b.uname and a.loggedIn <> b.loggedIn;
+---- data for user-defined types are just strings in the proper textual
+---- representation.
 --
---CREATE INDEX test_cplx_ind ON test_email_address
---   USING btree(a email_address_abs_ops);
+--insert into Users(username,loggedIn,loggedOut) values
+--('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
+--('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
+--('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
+--('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
+--('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
+--('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
+--('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
+--('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
+--('jas@cse.unsw.edu.au','2012-07-01 15:45:55','2012-07-01 15:51:20'),
+--('jas@cse.unsw.EDU.AU','2012-07-01 15:50:30','2012-07-01 15:53:15'),
+--('z9987654@unsw.edu.au','2012-07-01 15:51:10','2012-07-01 16:01:05'),
+--('m.mouse@disney.com','2012-07-01 15:51:11','2012-07-01 16:01:06'),
+--('abc@cse.unsw.edu.au','2012-07-01 15:51:11','2012-07-01 16:01:06'),
+--('a-user@fast-money.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
 --
---SELECT * from UserSessions where username = 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username != 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username < 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username <= 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username > 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username >= 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username ~ 'abc@cse.unsw.edu.au';
---SELECT * from UserSessions where username !~ 'abc@cse.unsw.edu.au';
-
--- clean up the example
---DROP TABLE test_email_address;
---DROP TYPE email_address CASCADE;
+----insert into Users(username,loggedIn,loggedOut) values
+----('"jas"@cse.unsw.edu.au','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('j..shepherd@funny.email.org','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('123jas@marketing.abc.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('john@123buynow.com.au','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('jas@cse','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('john@cse.unsw@edu.au','2012-07-01 15:52:25','2012-07-01 16:10:15');
+----('x--@gmail.com','2012-07-01 15:52:25','2012-07-01 16:10:15');
+--
+----SELECT * FROM Users order by username;
+--
+--create index ha on Users using hash (username);
+--
+----select username, count(*) from Users
+----group  by username;
+--
+----select a.username, a.loggedIn, b.loggedIn
+----from   Users a, Users b
+----where  a.username = b.username and a.loggedIn <> b.loggedIn;
+--
+--CREATE INDEX ind ON Users
+--   USING btree(username email_address_abs_ops);
+--
+--SELECT * from Users where username = 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username != 'jas@cse.unsw.edu.au';
+----SELECT * from Users where username < 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username <= 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username > 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username >= 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username ~ 'abc@cse.unsw.edu.au';
+----SELECT * from Users where username !~ 'abc@cse.unsw.edu.au';
+--
+---- clean up the example
+--DROP TABLE users;
+--DROP TYPE EmailAddress CASCADE;
